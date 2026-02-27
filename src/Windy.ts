@@ -1,10 +1,12 @@
 // src/Windy.ts
 export type Direction = 'horizontal' | 'vertical';
+export type ViewType = 'help' | 'demo' | 'empty';
 
 export interface WindyWindow {
   id: string;
   type: 'window';
   title: string;
+  viewType: ViewType;
   isFloating?: boolean;
   floatingBounds?: { x: number, y: number, w: number, h: number };
   isHidden?: boolean;
@@ -26,11 +28,12 @@ type Listener = () => void;
 class WindyManager {
   root: WindyNode | null = null;
   floatingWindows: WindyWindow[] = [];
+  maximizedWindowId: string | null = null;
   listeners: Set<Listener> = new Set();
   version = 0;
 
   constructor() {
-    this.root = this.createWindow('Main View');
+    this.root = this.createWindow('Documentation', 'help');
   }
 
   subscribe(listener: Listener) {
@@ -45,18 +48,19 @@ class WindyManager {
     this.listeners.forEach(l => l());
   }
 
-  createWindow(title: string): WindyWindow {
+  createWindow(title: string, viewType: ViewType = 'empty'): WindyWindow {
     return {
       id: Math.random().toString(36).substring(2, 9),
       type: 'window',
       title,
+      viewType,
       isFloating: false,
       isHidden: false,
     };
   }
 
-  create(title: string, side: Direction = 'horizontal', resizeAble = true, size = 0.5, parentId?: string) {
-    const newWin = this.createWindow(title);
+  create(title: string, side: Direction = 'horizontal', resizeAble = true, size = 0.5, parentId?: string, viewType: ViewType = 'empty') {
+    const newWin = this.createWindow(title, viewType);
     if (parentId) {
       this.split(parentId, newWin, side, size);
     } else if (this.root) {
@@ -109,6 +113,10 @@ class WindyManager {
   }
 
   close(targetId: string) {
+    if (this.maximizedWindowId === targetId) {
+      this.maximizedWindowId = null;
+    }
+
     const floatIdx = this.floatingWindows.findIndex(w => w.id === targetId);
     if (floatIdx !== -1) {
       this.floatingWindows.splice(floatIdx, 1);
@@ -122,7 +130,7 @@ class WindyManager {
     const { node, parent } = found;
 
     if (!parent) {
-      this.root = this.createWindow('Empty');
+      this.root = this.createWindow('Empty View', 'empty');
       this.notify();
       return;
     }
@@ -146,6 +154,10 @@ class WindyManager {
   float(targetId: string) {
     const found = this.findNodeAndParent(targetId);
     if (!found || found.node.type !== 'window') return;
+
+    if (this.maximizedWindowId === targetId) {
+      this.maximizedWindowId = null;
+    }
 
     const win = found.node as WindyWindow;
     this.close(targetId);
@@ -189,6 +201,37 @@ class WindyManager {
       (found.node as WindySplit).ratio = ratio;
       this.notify();
     }
+  }
+
+  setViewType(targetId: string, viewType: ViewType) {
+    const updateWin = (win: WindyWindow) => {
+      win.viewType = viewType;
+      const titles: Record<ViewType, string> = { help: 'Documentation', demo: 'Demo View', empty: 'Empty View' };
+      win.title = titles[viewType] || 'Window';
+    };
+
+    const found = this.findNodeAndParent(targetId);
+    if (found && found.node.type === 'window') {
+      updateWin(found.node as WindyWindow);
+      this.notify();
+      return;
+    }
+    
+    const floatWin = this.floatingWindows.find(w => w.id === targetId);
+    if (floatWin) {
+      updateWin(floatWin);
+      this.notify();
+    }
+  }
+
+  maximize(targetId: string) {
+    this.maximizedWindowId = targetId;
+    this.notify();
+  }
+
+  restore() {
+    this.maximizedWindowId = null;
+    this.notify();
   }
   
   trigger(event: string, payload?: any) {
