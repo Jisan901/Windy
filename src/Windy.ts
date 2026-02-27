@@ -1,6 +1,6 @@
 // src/Windy.ts
 export type Direction = 'horizontal' | 'vertical';
-export type ViewType = 'help' | 'demo' | 'empty';
+export type ViewType = 'help' | 'demo' | 'empty' | 'viewport3d' | 'uvgraph';
 
 export interface WindyWindow {
   id: string;
@@ -42,6 +42,13 @@ class WindyManager {
   }
 
   getSnapshot = () => this.version;
+
+  clear() {
+    this.root = null;
+    this.floatingWindows = [];
+    this.maximizedWindowId = null;
+    this.notify();
+  }
 
   notify() {
     this.version++;
@@ -206,7 +213,7 @@ class WindyManager {
   setViewType(targetId: string, viewType: ViewType) {
     const updateWin = (win: WindyWindow) => {
       win.viewType = viewType;
-      const titles: Record<ViewType, string> = { help: 'Documentation', demo: 'Demo View', empty: 'Empty View' };
+      const titles: Record<ViewType, string> = { help: 'Documentation', demo: 'Demo View', empty: 'Empty View', viewport3d: '3D Viewport', uvgraph: 'UV Editor' };
       win.title = titles[viewType] || 'Window';
     };
 
