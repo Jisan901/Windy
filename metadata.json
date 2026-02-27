@@ -1,0 +1,5 @@
+{
+  "name": "Windy UI Manager",
+  "description": "A Blender-like window management system with splitting, floating, and snapping.",
+  "requestFramePermissions": []
+}
