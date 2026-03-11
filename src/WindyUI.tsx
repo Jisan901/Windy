@@ -1,4 +1,4 @@
-import React, { useRef, useState, useSyncExternalStore, createContext, useContext } from 'react';
+import React, { useRef, useState, useEffect, useSyncExternalStore, createContext, useContext } from 'react';
 import { Windy, WindyNode, WindySplit, WindyWindow, Direction, ViewType } from './Windy';
 import { Maximize2, X, SplitSquareHorizontal, SplitSquareVertical, Minimize2, ChevronDown, FileText, Box, Square, BoxSelect, Image as ImageIcon } from 'lucide-react';
 
@@ -120,6 +120,22 @@ function WindowHeader({ window, isFloating = false, onDragStart }: { window: Win
   const defs = useContext(WindyDefsContext);
   const isMaximized = Windy.maximizedWindowId === window.id;
   const currentDef = defs.find(d => d.id === window.viewType);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
 
   const handleSplit = (dir: Direction) => {
     const newWin = Windy.createWindow('Empty View', 'empty');
@@ -132,26 +148,43 @@ function WindowHeader({ window, isFloating = false, onDragStart }: { window: Win
       onMouseDown={onDragStart}
       onTouchStart={onDragStart}
     >
-      <div className="flex items-center gap-2 relative group h-full">
-        <div className="flex items-center gap-1.5 text-[10px] font-medium text-[#b3b3b3] uppercase tracking-wider group-hover:text-white transition-colors pointer-events-none">
-          {currentDef?.icon || <Square size={12} />}
-          {window.title}
-          <ChevronDown size={10} className="opacity-50 group-hover:opacity-100" />
-        </div>
-        <select 
-          className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full"
-          value={window.viewType}
-          onChange={(e) => {
-            const selectedDef = defs.find(d => d.id === e.target.value);
-            Windy.setViewType(window.id, e.target.value, selectedDef?.title);
+      <div className="flex items-center gap-2 relative group h-full" ref={dropdownRef}>
+        <div 
+          className="flex items-center gap-1.5 text-[10px] font-medium text-[#b3b3b3] uppercase tracking-wider hover:text-white transition-colors cursor-pointer h-full px-1.5 -ml-1.5 rounded hover:bg-[#404040]"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsDropdownOpen(!isDropdownOpen);
           }}
           onMouseDown={e => e.stopPropagation()}
           onTouchStart={e => e.stopPropagation()}
         >
-          {defs.map(def => (
-            <option key={def.id} value={def.id}>{def.title}</option>
-          ))}
-        </select>
+          {currentDef?.icon || <Square size={12} />}
+          {window.title}
+          <ChevronDown size={10} className={`opacity-50 group-hover:opacity-100 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+        </div>
+        
+        {isDropdownOpen && (
+          <div 
+            className="absolute top-full left-0 mt-1 w-48 bg-[#2d2d2d] border border-[#111111] rounded shadow-lg z-50 py-1 max-h-64 overflow-y-auto"
+            onMouseDown={e => e.stopPropagation()}
+            onTouchStart={e => e.stopPropagation()}
+          >
+            {defs.map(def => (
+              <div
+                key={def.id}
+                className={`px-3 py-1.5 text-xs flex items-center gap-2 cursor-pointer hover:bg-[#404040] transition-colors ${window.viewType === def.id ? 'text-white bg-[#3d3d3d]' : 'text-[#b3b3b3]'}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  Windy.setViewType(window.id, def.id, def.title);
+                  setIsDropdownOpen(false);
+                }}
+              >
+                {def.icon || <Square size={12} />}
+                {def.title}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className={`flex items-center gap-0.5 ${isFloating ? '' : 'opacity-50 hover:opacity-100 transition-opacity'}`} onMouseDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}>
         {!isFloating && !isMaximized && (
