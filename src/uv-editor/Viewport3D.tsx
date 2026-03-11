@@ -1,80 +1,78 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Box, TransformControls } from '@react-three/drei';
-import { MousePointer2, Move, RotateCw, Maximize } from 'lucide-react';
-
-type Tool = 'select' | 'move' | 'rotate' | 'scale';
+import { OrbitControls } from '@react-three/drei';
+import * as THREE from 'three';
+import { useWindy } from '../WindyUI';
+import { useEditor } from './EditorContext';
 
 export function Viewport3D() {
-  const [activeTool, setActiveTool] = useState<Tool>('select');
+  const windy = useWindy();
+  const { geometry, selectedVertices } = useEditor();
+
+  // Create Three.js geometry from our context data
+  const threeGeometry = useMemo(() => {
+    if (!geometry) return null;
+    
+    const geo = new THREE.BufferGeometry();
+    
+    // Positions
+    const positions = new Float32Array(geometry.positions.length * 3);
+    geometry.positions.forEach((pos, i) => {
+      positions[i * 3] = pos.x;
+      positions[i * 3 + 1] = pos.y;
+      positions[i * 3 + 2] = pos.z;
+    });
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    
+    // UVs
+    const uvs = new Float32Array(geometry.uvs.length * 2);
+    geometry.uvs.forEach((uv, i) => {
+      uvs[i * 2] = uv.x;
+      uvs[i * 2 + 1] = uv.y;
+    });
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    
+    // Indices
+    geo.setIndex(geometry.indices);
+    
+    geo.computeVertexNormals();
+    return geo;
+  }, [geometry]);
 
   return (
     <div className="w-full h-full bg-[#111111] relative group">
-      {/* Tools Menu Overlay */}
-      <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 bg-[#2d2d2d]/80 backdrop-blur-sm p-1 rounded-md border border-[#444] transition-opacity shadow-lg">
-        <ToolButton 
-          active={activeTool === 'select'} 
-          onClick={() => setActiveTool('select')} 
-          icon={<MousePointer2 size={14} />} 
-          title="Select (W)" 
-        />
-        <div className="h-[1px] bg-[#444] mx-1 my-0.5" />
-        <ToolButton 
-          active={activeTool === 'move'} 
-          onClick={() => setActiveTool('move')} 
-          icon={<Move size={14} />} 
-          title="Move (G)" 
-        />
-        <ToolButton 
-          active={activeTool === 'rotate'} 
-          onClick={() => setActiveTool('rotate')} 
-          icon={<RotateCw size={14} />} 
-          title="Rotate (R)" 
-        />
-        <ToolButton 
-          active={activeTool === 'scale'} 
-          onClick={() => setActiveTool('scale')} 
-          icon={<Maximize size={14} />} 
-          title="Scale (S)" 
-        />
-      </div>
-
       <Canvas camera={{ position: [2, 2, 2] }}>
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 10, 5]} intensity={1} />
         
-        {activeTool !== 'select' ? (
-          <TransformControls mode={activeTool as any}>
-            <Box args={[1, 1, 1]}>
-              <meshStandardMaterial color="#44aa88" />
-            </Box>
-          </TransformControls>
-        ) : (
-          <Box args={[1, 1, 1]}>
-            <meshStandardMaterial color="#44aa88" />
-          </Box>
+        {threeGeometry && (
+          <group>
+            <mesh geometry={threeGeometry}>
+              <meshStandardMaterial color="#44aa88" side={THREE.DoubleSide} />
+            </mesh>
+            
+            {/* Render selected vertices as small spheres */}
+            {geometry && Array.from(selectedVertices).map(idx => {
+              const pos = geometry.positions[idx];
+              if (!pos) return null;
+              return (
+                <mesh key={idx} position={[pos.x, pos.y, pos.z]}>
+                  <sphereGeometry args={[0.05, 16, 16]} />
+                  <meshBasicMaterial color="#ef4444" />
+                </mesh>
+              );
+            })}
+          </group>
         )}
 
-        <OrbitControls makeDefault enabled={activeTool === 'select'} />
+        <OrbitControls makeDefault enabled={windy.activeTool === 'select'} />
         <gridHelper args={[10, 10, '#444444', '#222222']} />
       </Canvas>
 
       {/* Active Tool Indicator */}
       <div className="absolute bottom-2 right-2 text-[10px] text-[#888] font-mono bg-[#111]/50 px-2 py-0.5 rounded pointer-events-none uppercase tracking-widest">
-        Tool: {activeTool}
+        View Mode: {windy.activeTool === 'select' ? 'Navigation' : 'Editing UVs'}
       </div>
     </div>
-  );
-}
-
-function ToolButton({ active, onClick, icon, title }: { active: boolean, onClick: () => void, icon: React.ReactNode, title: string }) {
-  return (
-    <button 
-      onClick={onClick}
-      title={title}
-      className={`p-1.5 rounded transition-colors ${active ? 'bg-blue-500 text-white' : 'text-[#b3b3b3] hover:bg-[#444] hover:text-white'}`}
-    >
-      {icon}
-    </button>
   );
 }

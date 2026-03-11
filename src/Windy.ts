@@ -1,6 +1,8 @@
 // src/Windy.ts
 export type Direction = 'horizontal' | 'vertical';
-export type ViewType = 'help' | 'demo' | 'empty' | 'viewport3d' | 'uvgraph';
+export type ViewType = string;
+export type ToolType = 'select' | 'pan' | 'move' | 'rotate' | 'scale';
+export type SelectionMode = 'vertex' | 'face';
 
 export interface WindyWindow {
   id: string;
@@ -29,6 +31,8 @@ class WindyManager {
   root: WindyNode | null = null;
   floatingWindows: WindyWindow[] = [];
   maximizedWindowId: string | null = null;
+  activeTool: ToolType = 'select';
+  selectionMode: SelectionMode = 'vertex';
   listeners: Set<Listener> = new Set();
   version = 0;
 
@@ -210,11 +214,12 @@ class WindyManager {
     }
   }
 
-  setViewType(targetId: string, viewType: ViewType) {
+  setViewType(targetId: string, viewType: ViewType, title?: string) {
     const updateWin = (win: WindyWindow) => {
       win.viewType = viewType;
-      const titles: Record<ViewType, string> = { help: 'Documentation', demo: 'Demo View', empty: 'Empty View', viewport3d: '3D Viewport', uvgraph: 'UV Editor' };
-      win.title = titles[viewType] || 'Window';
+      if (title) {
+        win.title = title;
+      }
     };
 
     const found = this.findNodeAndParent(targetId);
@@ -238,6 +243,16 @@ class WindyManager {
 
   restore() {
     this.maximizedWindowId = null;
+    this.notify();
+  }
+
+  setTool(tool: ToolType) {
+    this.activeTool = tool;
+    this.notify();
+  }
+
+  setSelectionMode(mode: SelectionMode) {
+    this.selectionMode = mode;
     this.notify();
   }
   

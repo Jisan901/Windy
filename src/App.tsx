@@ -4,7 +4,12 @@
  */
 
 import { UVEditorApp } from './uv-editor/UVEditorApp';
+import { EditorProvider } from './uv-editor/EditorContext';
 
 export default function App() {
-  return <UVEditorApp />;
+  return (
+    <EditorProvider>
+      <UVEditorApp />
+    </EditorProvider>
+  );
 }

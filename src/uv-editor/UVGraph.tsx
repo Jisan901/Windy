@@ -1,47 +1,497 @@
+import { useState, useRef, useEffect } from 'react';
+import { Move, RotateCw, Maximize, Minus, Plus, Square as SquareIcon, Magnet } from 'lucide-react';
+import { useWindy } from '../WindyUI';
+import { drawUvGraph } from './drawUtils';
+import { useEditor } from './EditorContext';
+
 export function UVGraph() {
-  return (
-    <div className="w-full h-full bg-[#1a1a1a] relative overflow-hidden flex items-center justify-center">
-      {/* Grid background */}
-      <div 
-        className="absolute inset-0 opacity-20"
-        style={{
-          backgroundImage: 'linear-gradient(#444 1px, transparent 1px), linear-gradient(90deg, #444 1px, transparent 1px)',
-          backgroundSize: '20px 20px',
-          backgroundPosition: 'center center'
-        }}
-      />
+  const windy = useWindy();
+  const { geometry, setGeometry, selectedVertices, setSelectedVertices } = useEditor();
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [selectionBox, setSelectionBox] = useState<{startU: number, startV: number, currentU: number, currentV: number} | null>(null);
+  const [canvasSize, setCanvasSize] = useState(400);
+  const [hoveredGizmo, setHoveredGizmo] = useState<string | null>(null);
+  const [snapToGrid, setSnapToGrid] = useState(false);
+  const [snapAmount, setSnapAmount] = useState(0.1);
+  const [snapAngleDeg, setSnapAngleDeg] = useState(15);
+  const [transformState, setTransformState] = useState<{
+    axis: string;
+    startU: number;
+    startV: number;
+    centerU: number;
+    centerV: number;
+    initialUVs: { idx: number; u: number; v: number }[];
+  } | null>(null);
+  
+  const lastPointerPos = useRef({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const uvCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Drawing logic for the UV Canvas
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        const { width, height } = entry.contentRect;
+        // Calculate the maximum square size that fits, minus some padding
+        const size = Math.min(width, height) - 64; 
+        setCanvasSize(Math.max(100, size));
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (uvCanvasRef.current) {
+      drawUvGraph(
+        uvCanvasRef.current,
+        zoom,
+        pan,
+        windy.selectionMode,
+        selectedVertices,
+        selectionBox,
+        geometry,
+        windy.activeTool,
+        hoveredGizmo
+      );
+    }
+  }, [windy.selectionMode, zoom, pan, selectedVertices, selectionBox, geometry, windy.activeTool, hoveredGizmo]);
+
+  const getUvCoords = (clientX: number, clientY: number) => {
+    if (!uvCanvasRef.current) return { u: 0, v: 0 };
+    const rect = uvCanvasRef.current.getBoundingClientRect();
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+    const w = rect.width;
+    const h = rect.height;
+
+    const x = (sx - w/2 - pan.x) / zoom + w/2;
+    const y = (sy - h/2 - pan.y) / zoom + h/2;
+
+    const u = x / w;
+    const v = 1 - (y / h);
+    return { u, v };
+  };
+
+  const getSelectionCenter = () => {
+    if (!geometry || selectedVertices.size === 0) return null;
+    let sumU = 0, sumV = 0;
+    selectedVertices.forEach(idx => {
+      sumU += geometry.uvs[idx].x;
+      sumV += geometry.uvs[idx].y;
+    });
+    return { u: sumU / selectedVertices.size, v: sumV / selectedVertices.size };
+  };
+
+  const getGizmoHit = (clientX: number, clientY: number) => {
+    const center = getSelectionCenter();
+    if (!center || !['move', 'rotate', 'scale'].includes(windy.activeTool)) return null;
+
+    if (!uvCanvasRef.current) return null;
+    const rect = uvCanvasRef.current.getBoundingClientRect();
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+    const w = rect.width;
+    const h = rect.height;
+
+    const x = (sx - w/2 - pan.x) / zoom + w/2;
+    const y = (sy - h/2 - pan.y) / zoom + h/2;
+
+    const cx = center.u * w;
+    const cy = (1 - center.v) * h;
+
+    const dx = x - cx;
+    const dy = y - cy;
+
+    const armLength = 60 / zoom;
+    const hitTolerance = 30 / zoom; // Touch friendly hit area
+
+    if (windy.activeTool === 'move' || windy.activeTool === 'scale') {
+      if (Math.abs(dx) < hitTolerance && Math.abs(dy) < hitTolerance) return 'xy';
+      if (dx > 0 && dx < armLength + hitTolerance && Math.abs(dy) < hitTolerance) return 'x';
+      if (dy < 0 && dy > -armLength - hitTolerance && Math.abs(dx) < hitTolerance) return 'y';
+    } else if (windy.activeTool === 'rotate') {
+      const dist = Math.hypot(dx, dy);
+      if (Math.abs(dist - armLength) < hitTolerance) return 'rot';
+    }
+    return null;
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = -e.deltaY;
+      const factor = 1.1;
+      const newZoom = delta > 0 ? zoom * factor : zoom / factor;
+      setZoom(Math.max(0.1, Math.min(10, newZoom)));
+    } else {
+      setPan(prev => ({
+        x: prev.x - e.deltaX,
+        y: prev.y - e.deltaY
+      }));
+    }
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.target !== uvCanvasRef.current) return; // Prevent UI clicks from interacting with canvas
+
+    if (e.button === 1 || (e.button === 0 && (e.altKey || windy.activeTool === 'pan'))) {
+      setIsPanning(true);
+      lastPointerPos.current = { x: e.clientX, y: e.clientY };
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } else if (e.button === 0) {
+      const hit = getGizmoHit(e.clientX, e.clientY);
+      if (hit && geometry) {
+        const { u, v } = getUvCoords(e.clientX, e.clientY);
+        const center = getSelectionCenter()!;
+        const initialUVs = Array.from(selectedVertices).map(idx => ({
+          idx, u: geometry.uvs[idx].x, v: geometry.uvs[idx].y
+        }));
+        setTransformState({
+          axis: hit, startU: u, startV: v, centerU: center.u, centerV: center.v, initialUVs
+        });
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      } else if (windy.activeTool === 'select') {
+        const { u, v } = getUvCoords(e.clientX, e.clientY);
+        setSelectionBox({ startU: u, startV: v, currentU: u, currentV: v });
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      }
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (isPanning) {
+      const dx = e.clientX - lastPointerPos.current.x;
+      const dy = e.clientY - lastPointerPos.current.y;
+      setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+      lastPointerPos.current = { x: e.clientX, y: e.clientY };
+    } else if (transformState && geometry && setGeometry) {
+      const { u, v } = getUvCoords(e.clientX, e.clientY);
+      const { axis, startU, startV, centerU, centerV, initialUVs } = transformState;
       
-      {/* UV Canvas Area */}
-      <div className="relative z-10 w-64 h-64 border-2 border-[#555] bg-[#222] flex items-center justify-center shadow-lg">
-        <div className="w-full h-full relative">
-          {/* Placeholder UV island */}
-          <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100">
-            {/* Grid inside UV space */}
-            <g opacity="0.1">
-              <line x1="25" y1="0" x2="25" y2="100" stroke="#fff" strokeWidth="0.5" />
-              <line x1="50" y1="0" x2="50" y2="100" stroke="#fff" strokeWidth="0.5" />
-              <line x1="75" y1="0" x2="75" y2="100" stroke="#fff" strokeWidth="0.5" />
-              <line x1="0" y1="25" x2="100" y2="25" stroke="#fff" strokeWidth="0.5" />
-              <line x1="0" y1="50" x2="100" y2="50" stroke="#fff" strokeWidth="0.5" />
-              <line x1="0" y1="75" x2="100" y2="75" stroke="#fff" strokeWidth="0.5" />
-            </g>
-            
-            {/* UV Face */}
-            <polygon points="10,10 90,10 90,90 10,90" fill="rgba(68, 170, 136, 0.2)" stroke="#44aa88" strokeWidth="1" />
-            
-            {/* UV Vertices */}
-            <circle cx="10" cy="10" r="2" fill="#fff" className="cursor-pointer hover:fill-[#44aa88] transition-colors" />
-            <circle cx="90" cy="10" r="2" fill="#fff" className="cursor-pointer hover:fill-[#44aa88] transition-colors" />
-            <circle cx="90" cy="90" r="2" fill="#fff" className="cursor-pointer hover:fill-[#44aa88] transition-colors" />
-            <circle cx="10" cy="90" r="2" fill="#fff" className="cursor-pointer hover:fill-[#44aa88] transition-colors" />
-          </svg>
+      const newGeometry = { ...geometry, uvs: [...geometry.uvs] };
+      
+      if (windy.activeTool === 'move') {
+        let du = axis.includes('x') ? u - startU : 0;
+        let dv = axis.includes('y') ? v - startV : 0;
+        
+        if (snapToGrid && snapAmount > 0) {
+          const snappedCenterU = Math.round((centerU + du) / snapAmount) * snapAmount;
+          const snappedCenterV = Math.round((centerV + dv) / snapAmount) * snapAmount;
+          du = snappedCenterU - centerU;
+          dv = snappedCenterV - centerV;
+        }
+        
+        initialUVs.forEach(init => {
+          newGeometry.uvs[init.idx] = { x: init.u + du, y: init.v + dv };
+        });
+      } else if (windy.activeTool === 'scale') {
+        const du = u - startU;
+        const dv = v - startV;
+        const scaleX = axis.includes('x') ? 1 + du * 2 : 1;
+        const scaleY = axis.includes('y') ? 1 + dv * 2 : 1;
+        const scaleXY = axis === 'xy' ? 1 + (du + dv) * 2 : 1;
+        
+        let sx = axis === 'xy' ? scaleXY : scaleX;
+        let sy = axis === 'xy' ? scaleXY : scaleY;
+        
+        if (snapToGrid && snapAmount > 0) {
+          sx = Math.round(sx / snapAmount) * snapAmount;
+          sy = Math.round(sy / snapAmount) * snapAmount;
+        }
+        
+        initialUVs.forEach(init => {
+          newGeometry.uvs[init.idx] = {
+            x: centerU + (init.u - centerU) * sx,
+            y: centerV + (init.v - centerV) * sy
+          };
+        });
+      } else if (windy.activeTool === 'rotate') {
+        const startAngle = Math.atan2(startV - centerV, startU - centerU);
+        const currentAngle = Math.atan2(v - centerV, u - centerU);
+        let angle = currentAngle - startAngle;
+        
+        if (snapToGrid && snapAngleDeg > 0) {
+          const snapAngleRad = (snapAngleDeg * Math.PI) / 180;
+          angle = Math.round(angle / snapAngleRad) * snapAngleRad;
+        }
+        
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        
+        initialUVs.forEach(init => {
+          const dx = init.u - centerU;
+          const dy = init.v - centerV;
+          newGeometry.uvs[init.idx] = {
+            x: centerU + dx * cos - dy * sin,
+            y: centerV + dx * sin + dy * cos
+          };
+        });
+      }
+      
+      setGeometry(newGeometry);
+    } else if (selectionBox) {
+      const { u, v } = getUvCoords(e.clientX, e.clientY);
+      setSelectionBox(prev => prev ? { ...prev, currentU: u, currentV: v } : null);
+    } else {
+      const hit = getGizmoHit(e.clientX, e.clientY);
+      setHoveredGizmo(hit);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (isPanning) {
+      setIsPanning(false);
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } else if (transformState) {
+      setTransformState(null);
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } else if (selectionBox) {
+      const { startU, startV, currentU, currentV } = selectionBox;
+      // Touch friendly click threshold (scales with zoom)
+      const isClick = Math.abs(startU - currentU) < 0.02 / zoom && Math.abs(startV - currentV) < 0.02 / zoom;
+      
+      const newSelection = new Set(e.shiftKey ? selectedVertices : []);
+      
+      if (isClick) {
+        let closestIdx = -1;
+        let minDist = 0.08 / zoom; // Touch friendly selection radius
+        if (geometry) {
+          geometry.uvs.forEach((uv, idx) => {
+            const dist = Math.hypot(uv.x - currentU, uv.y - currentV);
+            if (dist < minDist) {
+              minDist = dist;
+              closestIdx = idx;
+            }
+          });
+        }
+        if (closestIdx !== -1) {
+          newSelection.add(closestIdx);
+        }
+      } else {
+        // Touch friendly selection box padding (scales with zoom)
+        const padding = 0.02 / zoom;
+        const minU = Math.min(startU, currentU) - padding;
+        const maxU = Math.max(startU, currentU) + padding;
+        const minV = Math.min(startV, currentV) - padding;
+        const maxV = Math.max(startV, currentV) + padding;
+        
+        if (geometry) {
+          geometry.uvs.forEach((uv, idx) => {
+            if (uv.x >= minU && uv.x <= maxU && uv.y >= minV && uv.y <= maxV) {
+              newSelection.add(idx);
+            }
+          });
+        }
+      }
+      
+      setSelectedVertices(newSelection);
+      setSelectionBox(null);
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    }
+  };
+
+  const handleManualTranslate = (axis: 'u' | 'v', newValue: number) => {
+    if (isNaN(newValue) || !geometry || selectedVertices.size === 0 || !setGeometry) return;
+    
+    const center = getSelectionCenter();
+    if (!center) return;
+
+    const delta = newValue - (axis === 'u' ? center.u : center.v);
+    
+    const newGeometry = { ...geometry, uvs: [...geometry.uvs] };
+    
+    selectedVertices.forEach(idx => {
+      const uv = newGeometry.uvs[idx];
+      newGeometry.uvs[idx] = {
+        x: axis === 'u' ? uv.x + delta : uv.x,
+        y: axis === 'v' ? uv.y + delta : uv.y
+      };
+    });
+    
+    setGeometry(newGeometry);
+  };
+
+  const resetView = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  const selectionCenter = getSelectionCenter();
+
+  return (
+    <div 
+      ref={containerRef}
+      className="w-full h-full bg-[#1a1a1a] relative overflow-hidden flex items-center justify-center group touch-none"
+      onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {/* Transformation Tools Menu */}
+      <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 bg-[#2d2d2d]/80 backdrop-blur-sm p-1 rounded-md border border-[#444] shadow-lg">
+        <ToolButton 
+          active={windy.activeTool === 'move'} 
+          onClick={() => windy.setTool('move')} 
+          icon={<Move size={14} />} 
+          title="Move (G)" 
+        />
+        <ToolButton 
+          active={windy.activeTool === 'rotate'} 
+          onClick={() => windy.setTool('rotate')} 
+          icon={<RotateCw size={14} />} 
+          title="Rotate (R)" 
+        />
+        <ToolButton 
+          active={windy.activeTool === 'scale'} 
+          onClick={() => windy.setTool('scale')} 
+          icon={<Maximize size={14} />} 
+          title="Scale (S)" 
+        />
+        <div className="h-[1px] bg-[#444] my-1" />
+        <ToolButton 
+          active={snapToGrid} 
+          onClick={() => setSnapToGrid(!snapToGrid)} 
+          icon={<Magnet size={14} />} 
+          title="Snap to Grid" 
+        />
+      </div>
+
+      {/* Snap Settings Panel */}
+      {snapToGrid && (
+        <div className="absolute left-12 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-2 bg-[#2d2d2d]/90 backdrop-blur-sm p-3 rounded-md border border-[#444] shadow-lg font-mono text-xs text-[#ccc] w-40 ml-2">
+          <div className="font-semibold text-white mb-1 border-b border-[#555] pb-1">Snap Settings</div>
+          <div className="flex items-center justify-between">
+            <span title="Grid snap amount">Grid:</span>
+            <input 
+              type="number" 
+              step="0.01"
+              min="0.001"
+              value={snapAmount}
+              onChange={(e) => setSnapAmount(parseFloat(e.target.value) || 0)}
+              className="w-16 bg-[#1a1a1a] border border-[#555] rounded px-1.5 py-1 text-right focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <span title="Angle snap in degrees">Angle:</span>
+            <input 
+              type="number" 
+              step="1"
+              min="1"
+              value={snapAngleDeg}
+              onChange={(e) => setSnapAngleDeg(parseFloat(e.target.value) || 0)}
+              className="w-16 bg-[#1a1a1a] border border-[#555] rounded px-1.5 py-1 text-right focus:outline-none focus:border-blue-500"
+            />
+          </div>
         </div>
+      )}
+
+      {/* Zoom Controls Overlay */}
+      <div className="absolute right-2 top-2 z-20 flex items-center gap-1 bg-[#2d2d2d]/80 backdrop-blur-sm p-1 rounded-md border border-[#444] shadow-lg">
+        <button 
+          onClick={() => setSelectedVertices(new Set())}
+          className="px-2 py-1 hover:bg-[#444] rounded text-[#ccc] text-[10px] font-medium uppercase tracking-wider border border-[#444] mr-2"
+          title="Deselect All"
+        >
+          Deselect
+        </button>
+        <button 
+          onClick={() => setZoom(prev => Math.max(0.1, prev / 1.2))}
+          className="p-1 hover:bg-[#444] rounded text-[#ccc]"
+          title="Zoom Out"
+        >
+          <Minus size={14} />
+        </button>
+        <span className="text-[10px] text-[#888] min-w-[32px] text-center font-mono">
+          {Math.round(zoom * 100)}%
+        </span>
+        <button 
+          onClick={() => setZoom(prev => Math.min(10, prev * 1.2))}
+          className="p-1 hover:bg-[#444] rounded text-[#ccc]"
+          title="Zoom In"
+        >
+          <Plus size={14} />
+        </button>
+        <button 
+          onClick={resetView}
+          className="p-1 hover:bg-[#444] rounded text-[#ccc]"
+          title="Reset View"
+        >
+          <SquareIcon size={14} />
+        </button>
+      </div>
+
+      {/* UV Canvas Area */}
+      <div 
+        className="relative z-10 border-2 border-[#555] bg-[#222] shadow-2xl overflow-hidden"
+        style={{ width: canvasSize, height: canvasSize }}
+      >
+        <canvas
+          ref={uvCanvasRef}
+          width={800}
+          height={800}
+          className="w-full h-full touch-none"
+          style={{
+            cursor: isPanning ? 'grabbing' : 'crosshair'
+          }}
+        />
       </div>
       
       {/* Overlay Info */}
-      <div className="absolute bottom-4 left-4 text-[10px] text-[#888] font-mono select-none">
-        UV Space (0,1)
+      <div className="absolute bottom-4 left-4 text-[10px] text-[#888] font-mono select-none flex gap-4 z-20">
+        <span>UV Space (0,1)</span>
+        <span className="opacity-50">|</span>
+        <span>Tool: {windy.activeTool.toUpperCase()}</span>
+        <span className="opacity-50">|</span>
+        <span>Mode: {windy.selectionMode.toUpperCase()}</span>
+        <span className="opacity-50">|</span>
+        <span>Pan: {Math.round(pan.x)}, {Math.round(pan.y)}</span>
       </div>
+
+      {/* Manual Transform Panel */}
+      {selectedVertices.size > 0 && selectionCenter && (
+        <div className="absolute bottom-12 left-4 z-20 flex flex-col gap-2 bg-[#2d2d2d]/90 backdrop-blur-sm p-3 rounded-md border border-[#444] shadow-lg font-mono text-xs text-[#ccc] w-48">
+          <div className="font-semibold text-white mb-1 border-b border-[#555] pb-1">Transform Center</div>
+          
+          <div className="flex items-center justify-between">
+            <span>U:</span>
+            <input 
+              type="number" 
+              step="0.01"
+              value={Number(selectionCenter.u.toFixed(3))}
+              onChange={(e) => handleManualTranslate('u', parseFloat(e.target.value))}
+              className="w-20 bg-[#1a1a1a] border border-[#555] rounded px-1.5 py-1 text-right focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <span>V:</span>
+            <input 
+              type="number" 
+              step="0.01"
+              value={Number(selectionCenter.v.toFixed(3))}
+              onChange={(e) => handleManualTranslate('v', parseFloat(e.target.value))}
+              className="w-20 bg-[#1a1a1a] border border-[#555] rounded px-1.5 py-1 text-right focus:outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+function ToolButton({ active, onClick, icon, title }: { active: boolean, onClick: () => void, icon: React.ReactNode, title: string }) {
+  return (
+    <button 
+      onClick={onClick}
+      title={title}
+      className={`p-1.5 rounded transition-colors ${active ? 'bg-blue-600 text-white' : 'text-[#b3b3b3] hover:bg-[#444] hover:text-white'}`}
+    >
+      {icon}
+    </button>
+  );
+}
+

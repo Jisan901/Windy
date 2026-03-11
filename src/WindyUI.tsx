@@ -1,15 +1,22 @@
-import React, { useRef, useState, useSyncExternalStore } from 'react';
+import React, { useRef, useState, useSyncExternalStore, createContext, useContext } from 'react';
 import { Windy, WindyNode, WindySplit, WindyWindow, Direction, ViewType } from './Windy';
 import { Maximize2, X, SplitSquareHorizontal, SplitSquareVertical, Minimize2, ChevronDown, FileText, Box, Square, BoxSelect, Image as ImageIcon } from 'lucide-react';
-import { Viewport3D } from './uv-editor/Viewport3D';
-import { UVGraph } from './uv-editor/UVGraph';
+
+export interface WindyDef {
+  id: string;
+  title: string;
+  icon?: React.ReactNode;
+  component: React.ComponentType<{ windowId: string }>;
+}
+
+export const WindyDefsContext = createContext<WindyDef[]>([]);
 
 export function useWindy() {
   useSyncExternalStore(Windy.subscribe.bind(Windy), Windy.getSnapshot);
   return Windy;
 }
 
-export function WindyRoot() {
+export function WindyRoot({ defs = [] }: { defs?: WindyDef[] }) {
   const windy = useWindy();
   
   let maximizedNode = null;
@@ -23,20 +30,22 @@ export function WindyRoot() {
   }
 
   return (
-    <div className="w-full h-full relative bg-[#1c1c1c] text-[#cccccc] overflow-hidden font-sans">
-      {maximizedNode ? (
-        <div className="absolute inset-0 z-50 bg-[#1c1c1c]">
-          <WindyNodeView node={maximizedNode} />
-        </div>
-      ) : (
-        <>
-          {windy.root && <WindyNodeView node={windy.root} />}
-          {windy.floatingWindows.map(w => (
-            <FloatingWindow key={w.id} window={w} />
-          ))}
-        </>
-      )}
-    </div>
+    <WindyDefsContext.Provider value={defs}>
+      <div className="w-full h-full relative bg-[#1c1c1c] text-[#cccccc] overflow-hidden font-sans">
+        {maximizedNode ? (
+          <div className="absolute inset-0 z-50 bg-[#1c1c1c]">
+            <WindyNodeView node={maximizedNode} />
+          </div>
+        ) : (
+          <>
+            {windy.root && <WindyNodeView node={windy.root} />}
+            {windy.floatingWindows.map(w => (
+              <FloatingWindow key={w.id} window={w} />
+            ))}
+          </>
+        )}
+      </div>
+    </WindyDefsContext.Provider>
   );
 }
 
@@ -107,8 +116,10 @@ function SplitView({ split }: { split: WindySplit }) {
   );
 }
 
-function WindowHeader({ window, isFloating = false }: { window: WindyWindow, isFloating?: boolean }) {
+function WindowHeader({ window, isFloating = false, onDragStart }: { window: WindyWindow, isFloating?: boolean, onDragStart?: (e: React.MouseEvent | React.TouchEvent) => void }) {
+  const defs = useContext(WindyDefsContext);
   const isMaximized = Windy.maximizedWindowId === window.id;
+  const currentDef = defs.find(d => d.id === window.viewType);
 
   const handleSplit = (dir: Direction) => {
     const newWin = Windy.createWindow('Empty View', 'empty');
@@ -116,30 +127,33 @@ function WindowHeader({ window, isFloating = false }: { window: WindyWindow, isF
   };
 
   return (
-    <div className="h-6 bg-[#2d2d2d] flex items-center justify-between px-2 select-none shrink-0">
+    <div 
+      className={`h-6 ${isFloating ? 'bg-[#333333] cursor-move' : 'bg-[#2d2d2d]'} flex items-center justify-between px-2 select-none shrink-0`}
+      onMouseDown={onDragStart}
+      onTouchStart={onDragStart}
+    >
       <div className="flex items-center gap-2 relative group h-full">
         <div className="flex items-center gap-1.5 text-[10px] font-medium text-[#b3b3b3] uppercase tracking-wider group-hover:text-white transition-colors pointer-events-none">
-          {window.viewType === 'help' && <FileText size={12} />}
-          {window.viewType === 'demo' && <Box size={12} />}
-          {window.viewType === 'empty' && <Square size={12} />}
-          {window.viewType === 'viewport3d' && <BoxSelect size={12} />}
-          {window.viewType === 'uvgraph' && <ImageIcon size={12} />}
+          {currentDef?.icon || <Square size={12} />}
           {window.title}
           <ChevronDown size={10} className="opacity-50 group-hover:opacity-100" />
         </div>
         <select 
           className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full"
           value={window.viewType}
-          onChange={(e) => Windy.setViewType(window.id, e.target.value as ViewType)}
+          onChange={(e) => {
+            const selectedDef = defs.find(d => d.id === e.target.value);
+            Windy.setViewType(window.id, e.target.value, selectedDef?.title);
+          }}
+          onMouseDown={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
         >
-          <option value="viewport3d">3D Viewport</option>
-          <option value="uvgraph">UV Editor</option>
-          <option value="empty">Empty View</option>
-          <option value="demo">Demo View</option>
-          <option value="help">Documentation</option>
+          {defs.map(def => (
+            <option key={def.id} value={def.id}>{def.title}</option>
+          ))}
         </select>
       </div>
-      <div className="flex items-center gap-0.5 opacity-50 hover:opacity-100 transition-opacity">
+      <div className={`flex items-center gap-0.5 ${isFloating ? '' : 'opacity-50 hover:opacity-100 transition-opacity'}`} onMouseDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}>
         {!isFloating && !isMaximized && (
           <>
             <button onClick={() => handleSplit('horizontal')} className="p-0.5 hover:bg-[#404040] rounded text-[#808080] hover:text-[#ffffff]" title="Split Horizontal">
@@ -176,17 +190,17 @@ function WindowHeader({ window, isFloating = false }: { window: WindyWindow, isF
 }
 
 function WindowView({ window }: { window: WindyWindow }) {
+  const defs = useContext(WindyDefsContext);
   if (window.isHidden) return null;
+
+  const currentDef = defs.find(d => d.id === window.viewType);
+  const Component = currentDef?.component;
 
   return (
     <div className="w-full h-full flex flex-col bg-[#232323] border border-[#111111] overflow-hidden">
       <WindowHeader window={window} />
       <div className="flex-1 overflow-auto relative">
-        {window.viewType === 'help' && <HelpView />}
-        {window.viewType === 'demo' && <DemoView windowId={window.id} />}
-        {window.viewType === 'viewport3d' && <Viewport3D />}
-        {window.viewType === 'uvgraph' && <UVGraph />}
-        {window.viewType === 'empty' && (
+        {Component ? <Component windowId={window.id} /> : (
           <div className="p-4 text-[#808080] text-sm font-mono">
             <p className="mb-2">// Empty View</p>
             <p>Window ID: {window.id}</p>
@@ -198,6 +212,7 @@ function WindowView({ window }: { window: WindyWindow }) {
 }
 
 function FloatingWindow({ window }: { window: WindyWindow }) {
+  const defs = useContext(WindyDefsContext);
   const [bounds, setBounds] = useState(window.floatingBounds || { x: 100, y: 100, w: 400, h: 300 });
   const isMaximized = Windy.maximizedWindowId === window.id;
 
@@ -234,58 +249,17 @@ function FloatingWindow({ window }: { window: WindyWindow }) {
 
   if (isMaximized) return null; // Handled by WindyRoot
 
+  const currentDef = defs.find(d => d.id === window.viewType);
+  const Component = currentDef?.component;
+
   return (
     <div 
       className="absolute z-50 bg-[#232323] border border-[#404040] shadow-2xl flex flex-col rounded overflow-hidden"
       style={{ left: bounds.x, top: bounds.y, width: bounds.w, height: bounds.h }}
     >
-      <div 
-        className="h-6 bg-[#333333] flex items-center justify-between px-2 cursor-move select-none shrink-0"
-        onMouseDown={handleDragHeaderStart}
-        onTouchStart={handleDragHeaderStart}
-      >
-        <div className="flex items-center gap-2 relative group h-full">
-          <div className="flex items-center gap-1.5 text-[10px] font-medium text-[#cccccc] uppercase tracking-wider group-hover:text-white transition-colors pointer-events-none">
-            {window.viewType === 'help' && <FileText size={12} />}
-            {window.viewType === 'demo' && <Box size={12} />}
-            {window.viewType === 'empty' && <Square size={12} />}
-            {window.viewType === 'viewport3d' && <BoxSelect size={12} />}
-            {window.viewType === 'uvgraph' && <ImageIcon size={12} />}
-            {window.title}
-            <ChevronDown size={10} className="opacity-50 group-hover:opacity-100" />
-          </div>
-          <select 
-            className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full"
-            value={window.viewType}
-            onChange={(e) => Windy.setViewType(window.id, e.target.value as ViewType)}
-            onMouseDown={e => e.stopPropagation()}
-            onTouchStart={e => e.stopPropagation()}
-          >
-            <option value="viewport3d">3D Viewport</option>
-            <option value="uvgraph">UV Editor</option>
-            <option value="empty">Empty View</option>
-            <option value="demo">Demo View</option>
-            <option value="help">Documentation</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-0.5" onMouseDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}>
-          <button onClick={() => Windy.snap(window.id, Windy.root!.id, 'horizontal')} className="p-0.5 hover:bg-[#404040] rounded text-[#808080] hover:text-[#ffffff]" title="Snap to Root">
-            <SplitSquareHorizontal size={12} />
-          </button>
-          <button onClick={() => Windy.maximize(window.id)} className="p-0.5 hover:bg-[#404040] rounded text-[#808080] hover:text-[#ffffff]" title="Maximize">
-            <Maximize2 size={12} />
-          </button>
-          <button onClick={() => Windy.close(window.id)} className="p-0.5 hover:bg-[#e04343] rounded text-[#808080] hover:text-[#ffffff]" title="Close">
-            <X size={12} />
-          </button>
-        </div>
-      </div>
+      <WindowHeader window={window} isFloating={true} onDragStart={handleDragHeaderStart} />
       <div className="flex-1 overflow-auto relative">
-        {window.viewType === 'help' && <HelpView />}
-        {window.viewType === 'demo' && <DemoView windowId={window.id} />}
-        {window.viewType === 'viewport3d' && <Viewport3D />}
-        {window.viewType === 'uvgraph' && <UVGraph />}
-        {window.viewType === 'empty' && (
+        {Component ? <Component windowId={window.id} /> : (
           <div className="p-4 text-[#808080] text-sm font-mono">
             <p className="mb-2">// Floating Window</p>
             <p>Window ID: {window.id}</p>
@@ -296,7 +270,7 @@ function FloatingWindow({ window }: { window: WindyWindow }) {
   );
 }
 
-function HelpView() {
+export function HelpView() {
   return (
     <div className="text-[#cccccc] text-sm p-6 space-y-6 font-sans h-full overflow-auto">
       <div>
@@ -333,7 +307,7 @@ function HelpView() {
   );
 }
 
-function DemoView({ windowId }: { windowId: string }) {
+export function DemoView({ windowId }: { windowId: string }) {
   return (
     <div className="p-4 flex flex-col items-center justify-center h-full text-center space-y-4">
       <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center justify-center animate-pulse">
