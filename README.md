@@ -79,14 +79,17 @@ import { WINDY_DEFS } from './defs';
 
 export default function App() {
   useEffect(() => {
-    // Clear any existing layout
-    Windy.clear();
-    
-    // Create the root window
-    const root = Windy.create('My Custom View', 'horizontal', true, 0.5, undefined, 'my-view');
-    
-    // Split the root window to add a second view
-    Windy.split(root.id, Windy.createWindow('Empty View', 'empty'), 'horizontal', 0.5);
+    // Attempt to load layout from localStorage
+    if (!Windy.load()) {
+      // If no saved layout, initialize the default layout
+      Windy.clear();
+      
+      // Create the root window
+      const root = Windy.create('My Custom View', 'horizontal', true, 0.5, undefined, 'my-view');
+      
+      // Split the root window to add a second view
+      Windy.split(root.id, Windy.createWindow('Empty View', 'empty'), 'horizontal', 0.5);
+    }
   }, []);
 
   return (
@@ -115,6 +118,8 @@ The `Windy` singleton manages the entire state of your window layout.
 | `Windy.restore()` | Restores the currently maximized window to its original size/position. |
 | `Windy.setViewType(targetId, viewType, title?)` | Changes the active view component of a window. |
 | `Windy.clear()` | Completely resets the window layout. |
+| `Windy.save()` | Manually saves the current layout to `localStorage` (happens automatically on changes). |
+| `Windy.load()` | Loads the layout from `localStorage`. Returns `true` if successful. |
 
 ### `WindyRoot` Props
 

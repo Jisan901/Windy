@@ -211,14 +211,17 @@ import { WINDY_DEFS } from './defs';
 
 export default function App() {
   useEffect(() =&gt; {
-    // Clear any existing layout
-    Windy.clear();
-    
-    // Create the root window
-    const root = Windy.create('My Custom View', 'horizontal', true, 0.5, undefined, 'my-view');
-    
-    // Split the root window to add a second view
-    Windy.split(root.id, Windy.createWindow('Empty View', 'empty'), 'horizontal', 0.5);
+    // Attempt to load layout from localStorage
+    if (!Windy.load()) {
+      // If no saved layout, initialize the default layout
+      Windy.clear();
+      
+      // Create the root window
+      const root = Windy.create('My Custom View', 'horizontal', true, 0.5, undefined, 'my-view');
+      
+      // Split the root window to add a second view
+      Windy.split(root.id, Windy.createWindow('Empty View', 'empty'), 'horizontal', 0.5);
+    }
   }, []);
 
   return (
@@ -284,6 +287,14 @@ export default function App() {
                             <tr>
                                 <td><code>Windy.clear()</code></td>
                                 <td>Completely resets the window layout.</td>
+                            </tr>
+                            <tr>
+                                <td><code>Windy.save()</code></td>
+                                <td>Manually saves the current layout to <code>localStorage</code> (happens automatically on changes).</td>
+                            </tr>
+                            <tr>
+                                <td><code>Windy.load()</code></td>
+                                <td>Loads the layout from <code>localStorage</code>. Returns <code>true</code> if successful.</td>
                             </tr>
                         </tbody>
                     </table>

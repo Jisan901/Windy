@@ -22,9 +22,11 @@ export function UVEditorApp() {
     initialized.current = true;
     
     // Initialize the layout for the UV Editor
-    Windy.clear();
-    const root = Windy.create('3D Viewport', 'horizontal', true, 0.5, undefined, 'viewport3d');
-    Windy.split(root.id, Windy.createWindow('UV Editor', 'uvgraph'), 'horizontal', 0.5);
+    if (!Windy.load()) {
+      Windy.clear();
+      const root = Windy.create('3D Viewport', 'horizontal', true, 0.5, undefined, 'viewport3d');
+      Windy.split(root.id, Windy.createWindow('UV Editor', 'uvgraph'), 'horizontal', 0.5);
+    }
   }, []);
 
   return (

@@ -56,7 +56,44 @@ class WindyManager {
 
   notify() {
     this.version++;
+    this.save();
     this.listeners.forEach(l => l());
+  }
+
+  save() {
+    try {
+      const state = {
+        root: this.root,
+        floatingWindows: this.floatingWindows,
+        maximizedWindowId: this.maximizedWindowId,
+        activeTool: this.activeTool,
+        selectionMode: this.selectionMode,
+      };
+      localStorage.setItem('windy_state', JSON.stringify(state));
+    } catch (e) {
+      console.error('Failed to save Windy state', e);
+    }
+  }
+
+  load(): boolean {
+    try {
+      const stateStr = localStorage.getItem('windy_state');
+      if (stateStr) {
+        const state = JSON.parse(stateStr);
+        if (state.root) {
+          this.root = state.root;
+          this.floatingWindows = state.floatingWindows || [];
+          this.maximizedWindowId = state.maximizedWindowId || null;
+          this.activeTool = state.activeTool || 'select';
+          this.selectionMode = state.selectionMode || 'vertex';
+          this.notify();
+          return true;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load Windy state', e);
+    }
+    return false;
   }
 
   createWindow(title: string, viewType: ViewType = 'empty'): WindyWindow {
