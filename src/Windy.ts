@@ -1,8 +1,6 @@
 // src/Windy.ts
 export type Direction = 'horizontal' | 'vertical';
 export type ViewType = string;
-export type ToolType = 'select' | 'pan' | 'move' | 'rotate' | 'scale';
-export type SelectionMode = 'vertex' | 'face';
 
 export interface WindyWindow {
   id: string;
@@ -31,8 +29,6 @@ class WindyManager {
   root: WindyNode | null = null;
   floatingWindows: WindyWindow[] = [];
   maximizedWindowId: string | null = null;
-  activeTool: ToolType = 'select';
-  selectionMode: SelectionMode = 'vertex';
   listeners: Set<Listener> = new Set();
   version = 0;
 
@@ -66,8 +62,6 @@ class WindyManager {
         root: this.root,
         floatingWindows: this.floatingWindows,
         maximizedWindowId: this.maximizedWindowId,
-        activeTool: this.activeTool,
-        selectionMode: this.selectionMode,
       };
       localStorage.setItem('windy_state', JSON.stringify(state));
     } catch (e) {
@@ -84,8 +78,6 @@ class WindyManager {
           this.root = state.root;
           this.floatingWindows = state.floatingWindows || [];
           this.maximizedWindowId = state.maximizedWindowId || null;
-          this.activeTool = state.activeTool || 'select';
-          this.selectionMode = state.selectionMode || 'vertex';
           this.notify();
           return true;
         }
@@ -280,16 +272,6 @@ class WindyManager {
 
   restore() {
     this.maximizedWindowId = null;
-    this.notify();
-  }
-
-  setTool(tool: ToolType) {
-    this.activeTool = tool;
-    this.notify();
-  }
-
-  setSelectionMode(mode: SelectionMode) {
-    this.selectionMode = mode;
     this.notify();
   }
   

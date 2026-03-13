@@ -244,7 +244,7 @@ function WindowView({ window }: { window: WindyWindow }) {
   );
 }
 
-function FloatingWindow({ window }: { window: WindyWindow }) {
+const FloatingWindow: React.FC<{ window: WindyWindow }> = ({ window }) => {
   const defs = useContext(WindyDefsContext);
   const [bounds, setBounds] = useState(window.floatingBounds || { x: 100, y: 100, w: 400, h: 300 });
   const isMaximized = Windy.maximizedWindowId === window.id;
@@ -301,7 +301,7 @@ function FloatingWindow({ window }: { window: WindyWindow }) {
       </div>
     </div>
   );
-}
+};
 
 export function HelpView() {
   return (

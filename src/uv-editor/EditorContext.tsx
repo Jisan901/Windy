@@ -3,6 +3,9 @@ import React, { createContext, useContext, useState } from 'react';
 export interface UVPoint { x: number; y: number; }
 export interface Position3D { x: number; y: number; z: number; }
 
+export type ToolType = 'select' | 'pan' | 'move' | 'rotate' | 'scale';
+export type SelectionMode = 'vertex' | 'face';
+
 export interface GeometryData {
   positions: Position3D[];
   uvs: UVPoint[];
@@ -14,6 +17,10 @@ interface EditorContextType {
   setGeometry: React.Dispatch<React.SetStateAction<GeometryData | null>>;
   selectedVertices: Set<number>;
   setSelectedVertices: React.Dispatch<React.SetStateAction<Set<number>>>;
+  activeTool: ToolType;
+  setActiveTool: React.Dispatch<React.SetStateAction<ToolType>>;
+  selectionMode: SelectionMode;
+  setSelectionMode: React.Dispatch<React.SetStateAction<SelectionMode>>;
 }
 
 const EditorContext = createContext<EditorContextType | null>(null);
@@ -38,11 +45,15 @@ const INITIAL_GEOMETRY: GeometryData = {
 export function EditorProvider({ children }: { children: React.ReactNode }) {
   const [geometry, setGeometry] = useState<GeometryData | null>(INITIAL_GEOMETRY);
   const [selectedVertices, setSelectedVertices] = useState<Set<number>>(new Set());
+  const [activeTool, setActiveTool] = useState<ToolType>('select');
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>('vertex');
 
   return (
     <EditorContext.Provider value={{
       geometry, setGeometry,
-      selectedVertices, setSelectedVertices
+      selectedVertices, setSelectedVertices,
+      activeTool, setActiveTool,
+      selectionMode, setSelectionMode
     }}>
       {children}
     </EditorContext.Provider>

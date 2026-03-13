@@ -1,12 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Move, RotateCw, Maximize, Minus, Plus, Square as SquareIcon, Magnet } from 'lucide-react';
-import { useWindy } from '../WindyUI';
 import { drawUvGraph } from './drawUtils';
 import { useEditor } from './EditorContext';
 
 export function UVGraph() {
-  const windy = useWindy();
-  const { geometry, setGeometry, selectedVertices, setSelectedVertices } = useEditor();
+  const { geometry, setGeometry, selectedVertices, setSelectedVertices, activeTool, setActiveTool, selectionMode } = useEditor();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -50,15 +48,15 @@ export function UVGraph() {
         uvCanvasRef.current,
         zoom,
         pan,
-        windy.selectionMode,
+        selectionMode,
         selectedVertices,
         selectionBox,
         geometry,
-        windy.activeTool,
+        activeTool,
         hoveredGizmo
       );
     }
-  }, [windy.selectionMode, zoom, pan, selectedVertices, selectionBox, geometry, windy.activeTool, hoveredGizmo]);
+  }, [selectionMode, zoom, pan, selectedVertices, selectionBox, geometry, activeTool, hoveredGizmo]);
 
   const getUvCoords = (clientX: number, clientY: number) => {
     if (!uvCanvasRef.current) return { u: 0, v: 0 };
@@ -88,7 +86,7 @@ export function UVGraph() {
 
   const getGizmoHit = (clientX: number, clientY: number) => {
     const center = getSelectionCenter();
-    if (!center || !['move', 'rotate', 'scale'].includes(windy.activeTool)) return null;
+    if (!center || !['move', 'rotate', 'scale'].includes(activeTool)) return null;
 
     if (!uvCanvasRef.current) return null;
     const rect = uvCanvasRef.current.getBoundingClientRect();
@@ -109,11 +107,11 @@ export function UVGraph() {
     const armLength = 60 / zoom;
     const hitTolerance = 30 / zoom; // Touch friendly hit area
 
-    if (windy.activeTool === 'move' || windy.activeTool === 'scale') {
+    if (activeTool === 'move' || activeTool === 'scale') {
       if (Math.abs(dx) < hitTolerance && Math.abs(dy) < hitTolerance) return 'xy';
       if (dx > 0 && dx < armLength + hitTolerance && Math.abs(dy) < hitTolerance) return 'x';
       if (dy < 0 && dy > -armLength - hitTolerance && Math.abs(dx) < hitTolerance) return 'y';
-    } else if (windy.activeTool === 'rotate') {
+    } else if (activeTool === 'rotate') {
       const dist = Math.hypot(dx, dy);
       if (Math.abs(dist - armLength) < hitTolerance) return 'rot';
     }
@@ -138,7 +136,7 @@ export function UVGraph() {
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.target !== uvCanvasRef.current) return; // Prevent UI clicks from interacting with canvas
 
-    if (e.button === 1 || (e.button === 0 && (e.altKey || windy.activeTool === 'pan'))) {
+    if (e.button === 1 || (e.button === 0 && (e.altKey || activeTool === 'pan'))) {
       setIsPanning(true);
       lastPointerPos.current = { x: e.clientX, y: e.clientY };
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -154,7 +152,7 @@ export function UVGraph() {
           axis: hit, startU: u, startV: v, centerU: center.u, centerV: center.v, initialUVs
         });
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      } else if (windy.activeTool === 'select') {
+      } else if (activeTool === 'select') {
         const { u, v } = getUvCoords(e.clientX, e.clientY);
         setSelectionBox({ startU: u, startV: v, currentU: u, currentV: v });
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -174,7 +172,7 @@ export function UVGraph() {
       
       const newGeometry = { ...geometry, uvs: [...geometry.uvs] };
       
-      if (windy.activeTool === 'move') {
+      if (activeTool === 'move') {
         let du = axis.includes('x') ? u - startU : 0;
         let dv = axis.includes('y') ? v - startV : 0;
         
@@ -188,7 +186,7 @@ export function UVGraph() {
         initialUVs.forEach(init => {
           newGeometry.uvs[init.idx] = { x: init.u + du, y: init.v + dv };
         });
-      } else if (windy.activeTool === 'scale') {
+      } else if (activeTool === 'scale') {
         const du = u - startU;
         const dv = v - startV;
         const scaleX = axis.includes('x') ? 1 + du * 2 : 1;
@@ -209,7 +207,7 @@ export function UVGraph() {
             y: centerV + (init.v - centerV) * sy
           };
         });
-      } else if (windy.activeTool === 'rotate') {
+      } else if (activeTool === 'rotate') {
         const startAngle = Math.atan2(startV - centerV, startU - centerU);
         const currentAngle = Math.atan2(v - centerV, u - centerU);
         let angle = currentAngle - startAngle;
@@ -335,20 +333,20 @@ export function UVGraph() {
       {/* Transformation Tools Menu */}
       <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1 bg-[#2d2d2d]/80 backdrop-blur-sm p-1 rounded-md border border-[#444] shadow-lg">
         <ToolButton 
-          active={windy.activeTool === 'move'} 
-          onClick={() => windy.setTool('move')} 
+          active={activeTool === 'move'} 
+          onClick={() => setActiveTool('move')} 
           icon={<Move size={14} />} 
           title="Move (G)" 
         />
         <ToolButton 
-          active={windy.activeTool === 'rotate'} 
-          onClick={() => windy.setTool('rotate')} 
+          active={activeTool === 'rotate'} 
+          onClick={() => setActiveTool('rotate')} 
           icon={<RotateCw size={14} />} 
           title="Rotate (R)" 
         />
         <ToolButton 
-          active={windy.activeTool === 'scale'} 
-          onClick={() => windy.setTool('scale')} 
+          active={activeTool === 'scale'} 
+          onClick={() => setActiveTool('scale')} 
           icon={<Maximize size={14} />} 
           title="Scale (S)" 
         />
@@ -445,9 +443,9 @@ export function UVGraph() {
       <div className="absolute bottom-4 left-4 text-[10px] text-[#888] font-mono select-none flex gap-4 z-20">
         <span>UV Space (0,1)</span>
         <span className="opacity-50">|</span>
-        <span>Tool: {windy.activeTool.toUpperCase()}</span>
+        <span>Tool: {activeTool.toUpperCase()}</span>
         <span className="opacity-50">|</span>
-        <span>Mode: {windy.selectionMode.toUpperCase()}</span>
+        <span>Mode: {selectionMode.toUpperCase()}</span>
         <span className="opacity-50">|</span>
         <span>Pan: {Math.round(pan.x)}, {Math.round(pan.y)}</span>
       </div>

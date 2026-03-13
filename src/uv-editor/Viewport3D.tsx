@@ -6,8 +6,7 @@ import { useEditor } from './EditorContext';
 
 export function Viewport3D() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const windy = useWindy();
-  const { geometry, selectedVertices } = useEditor();
+  const { geometry, selectedVertices, activeTool } = useEditor();
   
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -142,9 +141,9 @@ export function Viewport3D() {
   // Update controls enabled state
   useEffect(() => {
     if (controlsRef.current) {
-      controlsRef.current.enabled = windy.activeTool === 'select';
+      controlsRef.current.enabled = activeTool === 'select';
     }
-  }, [windy.activeTool]);
+  }, [activeTool]);
 
   return (
     <div className="w-full h-full bg-[#111111] relative group">
@@ -152,7 +151,7 @@ export function Viewport3D() {
 
       {/* Active Tool Indicator */}
       <div className="absolute bottom-2 right-2 text-[10px] text-[#888] font-mono bg-[#111]/50 px-2 py-0.5 rounded pointer-events-none uppercase tracking-widest">
-        View Mode: {windy.activeTool === 'select' ? 'Navigation' : 'Editing UVs'}
+        View Mode: {activeTool === 'select' ? 'Navigation' : 'Editing UVs'}
       </div>
     </div>
   );
