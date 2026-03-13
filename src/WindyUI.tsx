@@ -359,3 +359,5 @@ export function DemoView({ windowId }: { windowId: string }) {
     </div>
   );
 }
+
+export default WindyRoot;
