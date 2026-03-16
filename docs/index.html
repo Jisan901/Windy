@@ -164,8 +164,9 @@ yarn add windy-ui-react lucide-react
 
 # Using pnpm
 pnpm add windy-ui-react lucide-react</code></pre>
-                <div class="bg-zinc-900 border-l-4 border-indigo-500 p-4 rounded-r-lg mt-4">
+                <div class="bg-zinc-900 border-l-4 border-indigo-500 p-4 rounded-r-lg mt-4 space-y-2">
                     <p class="m-0 text-sm text-zinc-300"><strong>Note:</strong> <code>lucide-react</code> is required for the default window control icons (close, maximize, split, etc.).</p>
+                    <p class="m-0 text-sm text-zinc-300"><strong>Important:</strong> This package distributes raw <code>.ts</code> and <code>.tsx</code> files. Ensure your bundler (Vite, Next.js, Webpack) is configured to transpile TypeScript files from <code>node_modules</code> and that you have Tailwind CSS set up in your project.</p>
                 </div>
             </section>
 
@@ -177,7 +178,7 @@ pnpm add windy-ui-react lucide-react</code></pre>
                 <h3>1. Define Your Views</h3>
                 <p>First, define the components that will render inside your windows.</p>
                 <pre><code class="language-tsx">import React from 'react';
-import { WindyDef } from 'windy-ui-react';
+import { WindyDef } from 'windy-ui-react/ui';
 import { Square, Box } from 'lucide-react';
 
 export const WINDY_DEFS: WindyDef[] = [
@@ -206,7 +207,8 @@ export const WINDY_DEFS: WindyDef[] = [
                 <h3>2. Initialize and Render</h3>
                 <p>Initialize the default layout on mount, and render the <code>WindyRoot</code> component.</p>
                 <pre><code class="language-tsx">import React, { useEffect } from 'react';
-import { WindyRoot, Windy } from 'windy-ui-react';
+import { Windy } from 'windy-ui-react';
+import WindyRoot from 'windy-ui-react/ui';
 import { WINDY_DEFS } from './defs';
 
 export default function App() {

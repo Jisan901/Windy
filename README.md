@@ -32,6 +32,7 @@ pnpm add windy-ui-react lucide-react
 ```
 
 > **Note:** `lucide-react` is required for the default window control icons (close, maximize, split, etc.).
+> **Important:** This package distributes raw `.ts` and `.tsx` files. Ensure your bundler (Vite, Next.js, Webpack) is configured to transpile TypeScript files from `node_modules` and that you have Tailwind CSS set up in your project.
 
 ## 🚀 Quick Start
 
@@ -42,7 +43,7 @@ First, define the components that will render inside your windows.
 
 ```tsx
 import React from 'react';
-import { WindyDef } from 'windy-ui-react';
+import { WindyDef } from 'windy-ui-react/ui';
 import { Square, Box } from 'lucide-react';
 
 export const WINDY_DEFS: WindyDef[] = [
@@ -74,7 +75,8 @@ Initialize the default layout on mount, and render the `WindyRoot` component.
 
 ```tsx
 import React, { useEffect } from 'react';
-import { WindyRoot, Windy } from 'windy-ui-react';
+import { Windy } from 'windy-ui-react';
+import WindyRoot from 'windy-ui-react/ui';
 import { WINDY_DEFS } from './defs';
 
 export default function App() {

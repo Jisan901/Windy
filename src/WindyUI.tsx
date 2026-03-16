@@ -232,7 +232,7 @@ function WindowView({ window }: { window: WindyWindow }) {
   return (
     <div className="w-full h-full flex flex-col bg-[#232323] border border-[#111111] overflow-hidden">
       <WindowHeader window={window} />
-      <div className="flex-1 overflow-auto relative">
+      <div className="flex-1 overflow-auto relative min-h-0">
         {Component ? <Component windowId={window.id} /> : (
           <div className="p-4 text-[#808080] text-sm font-mono">
             <p className="mb-2">// Empty View</p>
@@ -291,7 +291,7 @@ const FloatingWindow: React.FC<{ window: WindyWindow }> = ({ window }) => {
       style={{ left: bounds.x, top: bounds.y, width: bounds.w, height: bounds.h }}
     >
       <WindowHeader window={window} isFloating={true} onDragStart={handleDragHeaderStart} />
-      <div className="flex-1 overflow-auto relative">
+      <div className="flex-1 overflow-auto relative min-h-0">
         {Component ? <Component windowId={window.id} /> : (
           <div className="p-4 text-[#808080] text-sm font-mono">
             <p className="mb-2">// Floating Window</p>
@@ -305,7 +305,7 @@ const FloatingWindow: React.FC<{ window: WindyWindow }> = ({ window }) => {
 
 export function HelpView() {
   return (
-    <div className="text-[#cccccc] text-sm p-6 space-y-6 font-sans h-full overflow-auto">
+    <div className="text-[#cccccc] text-sm p-6 space-y-6 font-sans">
       <div>
         <h1 className="text-2xl font-bold text-white mb-2">Windy UI Manager</h1>
         <p className="text-[#a0a0a0]">Windy is a flexible, Blender-inspired window management system for React.</p>

@@ -32,7 +32,7 @@ export function UVEditorApp() {
   return (
     <div className="w-screen h-screen flex flex-col bg-black overflow-hidden font-sans">
       <MenuBar />
-      <div className="flex-1 relative">
+      <div className="flex-1 relative min-h-0">
         <WindyRoot defs={WINDY_DEFS} />
       </div>
     </div>
