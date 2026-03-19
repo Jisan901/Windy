@@ -121,15 +121,15 @@ export function drawUvGraph(
       const i2 = indices[i + 1];
       const i3 = indices[i + 2];
 
-      const uv1 = uvs[i1];
-      const uv2 = uvs[i2];
-      const uv3 = uvs[i3];
+      const u1 = uvs[i1 * 2], v1 = uvs[i1 * 2 + 1];
+      const u2 = uvs[i2 * 2], v2 = uvs[i2 * 2 + 1];
+      const u3 = uvs[i3 * 2], v3 = uvs[i3 * 2 + 1];
 
-      if (uv1 && uv2 && uv3) {
+      if (u1 !== undefined && u2 !== undefined && u3 !== undefined) {
         ctx.beginPath();
-        ctx.moveTo(uv1.x * w, (1 - uv1.y) * h);
-        ctx.lineTo(uv2.x * w, (1 - uv2.y) * h);
-        ctx.lineTo(uv3.x * w, (1 - uv3.y) * h);
+        ctx.moveTo(u1 * w, (1 - v1) * h);
+        ctx.lineTo(u2 * w, (1 - v2) * h);
+        ctx.lineTo(u3 * w, (1 - v3) * h);
         ctx.closePath();
         ctx.stroke();
         
@@ -141,14 +141,16 @@ export function drawUvGraph(
     }
 
     // Draw vertices
-    uvs.forEach((uv, idx) => {
+    for (let idx = 0; idx < uvs.length / 2; idx++) {
+      const u = uvs[idx * 2];
+      const v = uvs[idx * 2 + 1];
       const isSelected = selectedVertices && selectedVertices.has(idx);
       const isVertexMode = selectionMode === 'vertex';
       
       ctx.fillStyle = isSelected ? '#ef4444' : (isVertexMode ? '#fff' : '#888');
       ctx.beginPath();
       const radius = (isSelected ? 10 : (isVertexMode ? 8 : 4)) / zoom;
-      ctx.arc(uv.x * w, (1 - uv.y) * h, radius, 0, Math.PI * 2);
+      ctx.arc(u * w, (1 - v) * h, radius, 0, Math.PI * 2);
       ctx.fill();
 
       if (isSelected) {
@@ -156,14 +158,14 @@ export function drawUvGraph(
         ctx.lineWidth = 4 / zoom;
         ctx.stroke();
       }
-    });
+    }
 
     // Draw Gizmo
     if (selectedVertices.size > 0 && ['move', 'rotate', 'scale'].includes(activeTool)) {
       let sumU = 0, sumV = 0;
       selectedVertices.forEach(idx => {
-        sumU += uvs[idx].x;
-        sumV += uvs[idx].y;
+        sumU += uvs[idx * 2];
+        sumV += uvs[idx * 2 + 1];
       });
       const cu = sumU / selectedVertices.size;
       const cv = sumV / selectedVertices.size;

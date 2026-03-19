@@ -110,11 +110,7 @@ export function Viewport3D() {
     });
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     
-    const uvs = new Float32Array(geometry.uvs.length * 2);
-    geometry.uvs.forEach((uv, i) => {
-      uvs[i * 2] = uv.x;
-      uvs[i * 2 + 1] = uv.y;
-    });
+    const uvs = new Float32Array(geometry.uvs);
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     
     geo.setIndex(geometry.indices);

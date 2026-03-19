@@ -78,8 +78,8 @@ export function UVGraph() {
     if (!geometry || selectedVertices.size === 0) return null;
     let sumU = 0, sumV = 0;
     selectedVertices.forEach(idx => {
-      sumU += geometry.uvs[idx].x;
-      sumV += geometry.uvs[idx].y;
+      sumU += geometry.uvs[idx * 2];
+      sumV += geometry.uvs[idx * 2 + 1];
     });
     return { u: sumU / selectedVertices.size, v: sumV / selectedVertices.size };
   };
@@ -145,8 +145,8 @@ export function UVGraph() {
       if (hit && geometry) {
         const { u, v } = getUvCoords(e.clientX, e.clientY);
         const center = getSelectionCenter()!;
-        const initialUVs = Array.from(selectedVertices).map(idx => ({
-          idx, u: geometry.uvs[idx].x, v: geometry.uvs[idx].y
+        const initialUVs = Array.from(selectedVertices).map((idx: number) => ({
+          idx, u: geometry.uvs[idx * 2], v: geometry.uvs[idx * 2 + 1]
         }));
         setTransformState({
           axis: hit, startU: u, startV: v, centerU: center.u, centerV: center.v, initialUVs
@@ -184,7 +184,8 @@ export function UVGraph() {
         }
         
         initialUVs.forEach(init => {
-          newGeometry.uvs[init.idx] = { x: init.u + du, y: init.v + dv };
+          newGeometry.uvs[init.idx * 2] = init.u + du;
+          newGeometry.uvs[init.idx * 2 + 1] = init.v + dv;
         });
       } else if (activeTool === 'scale') {
         const du = u - startU;
@@ -202,10 +203,8 @@ export function UVGraph() {
         }
         
         initialUVs.forEach(init => {
-          newGeometry.uvs[init.idx] = {
-            x: centerU + (init.u - centerU) * sx,
-            y: centerV + (init.v - centerV) * sy
-          };
+          newGeometry.uvs[init.idx * 2] = centerU + (init.u - centerU) * sx;
+          newGeometry.uvs[init.idx * 2 + 1] = centerV + (init.v - centerV) * sy;
         });
       } else if (activeTool === 'rotate') {
         const startAngle = Math.atan2(startV - centerV, startU - centerU);
@@ -223,10 +222,8 @@ export function UVGraph() {
         initialUVs.forEach(init => {
           const dx = init.u - centerU;
           const dy = init.v - centerV;
-          newGeometry.uvs[init.idx] = {
-            x: centerU + dx * cos - dy * sin,
-            y: centerV + dx * sin + dy * cos
-          };
+          newGeometry.uvs[init.idx * 2] = centerU + dx * cos - dy * sin;
+          newGeometry.uvs[init.idx * 2 + 1] = centerV + dx * sin + dy * cos;
         });
       }
       
@@ -258,13 +255,15 @@ export function UVGraph() {
         let closestIdx = -1;
         let minDist = 0.08 / zoom; // Touch friendly selection radius
         if (geometry) {
-          geometry.uvs.forEach((uv, idx) => {
-            const dist = Math.hypot(uv.x - currentU, uv.y - currentV);
+          for (let idx = 0; idx < geometry.uvs.length / 2; idx++) {
+            const u = geometry.uvs[idx * 2];
+            const v = geometry.uvs[idx * 2 + 1];
+            const dist = Math.hypot(u - currentU, v - currentV);
             if (dist < minDist) {
               minDist = dist;
               closestIdx = idx;
             }
-          });
+          }
         }
         if (closestIdx !== -1) {
           newSelection.add(closestIdx);
@@ -278,11 +277,13 @@ export function UVGraph() {
         const maxV = Math.max(startV, currentV) + padding;
         
         if (geometry) {
-          geometry.uvs.forEach((uv, idx) => {
-            if (uv.x >= minU && uv.x <= maxU && uv.y >= minV && uv.y <= maxV) {
+          for (let idx = 0; idx < geometry.uvs.length / 2; idx++) {
+            const u = geometry.uvs[idx * 2];
+            const v = geometry.uvs[idx * 2 + 1];
+            if (u >= minU && u <= maxU && v >= minV && v <= maxV) {
               newSelection.add(idx);
             }
-          });
+          }
         }
       }
       
@@ -303,11 +304,10 @@ export function UVGraph() {
     const newGeometry = { ...geometry, uvs: [...geometry.uvs] };
     
     selectedVertices.forEach(idx => {
-      const uv = newGeometry.uvs[idx];
-      newGeometry.uvs[idx] = {
-        x: axis === 'u' ? uv.x + delta : uv.x,
-        y: axis === 'v' ? uv.y + delta : uv.y
-      };
+      const u = newGeometry.uvs[idx * 2];
+      const v = newGeometry.uvs[idx * 2 + 1];
+      newGeometry.uvs[idx * 2] = axis === 'u' ? u + delta : u;
+      newGeometry.uvs[idx * 2 + 1] = axis === 'v' ? v + delta : v;
     });
     
     setGeometry(newGeometry);

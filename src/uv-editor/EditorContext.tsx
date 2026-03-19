@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
 
-export interface UVPoint { x: number; y: number; }
 export interface Position3D { x: number; y: number; z: number; }
 
 export type ToolType = 'select' | 'pan' | 'move' | 'rotate' | 'scale';
@@ -8,7 +7,7 @@ export type SelectionMode = 'vertex' | 'face';
 
 export interface GeometryData {
   positions: Position3D[];
-  uvs: UVPoint[];
+  uvs: number[];
   indices: number[];
 }
 
@@ -34,10 +33,10 @@ const INITIAL_GEOMETRY: GeometryData = {
     { x: -0.5, y:  0.5, z: 0 },
   ],
   uvs: [
-    { x: 0.1, y: 0.1 },
-    { x: 0.9, y: 0.1 },
-    { x: 0.9, y: 0.9 },
-    { x: 0.1, y: 0.9 },
+    0.1, 0.1,
+    0.9, 0.1,
+    0.9, 0.9,
+    0.1, 0.9,
   ],
   indices: [0, 1, 2, 0, 2, 3]
 };
