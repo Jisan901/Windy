@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import * as THREE from 'three';
 
 export interface Position3D { x: number; y: number; z: number; }
 
@@ -20,6 +21,10 @@ interface EditorContextType {
   setActiveTool: React.Dispatch<React.SetStateAction<ToolType>>;
   selectionMode: SelectionMode;
   setSelectionMode: React.Dispatch<React.SetStateAction<SelectionMode>>;
+  selectedObject: THREE.Mesh | null;
+  setSelectedObject: React.Dispatch<React.SetStateAction<THREE.Mesh | null>>;
+  uvVersion: number;
+  setUvVersion: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const EditorContext = createContext<EditorContextType | null>(null);
@@ -46,13 +51,65 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
   const [selectedVertices, setSelectedVertices] = useState<Set<number>>(new Set());
   const [activeTool, setActiveTool] = useState<ToolType>('select');
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('vertex');
+  const [selectedObject, setSelectedObject] = useState<THREE.Mesh | null>(null);
+  const [uvVersion, setUvVersion] = useState<number>(0);
+
+  // Sync from selectedObject to geometry
+  useEffect(() => {
+    if (selectedObject && selectedObject.geometry) {
+      const geo = selectedObject.geometry as THREE.BufferGeometry;
+      const posAttr = geo.getAttribute('position');
+      const uvAttr = geo.getAttribute('uv');
+      const indexAttr = geo.getIndex();
+
+      if (posAttr && uvAttr) {
+        const positions: Position3D[] = [];
+        for (let i = 0; i < posAttr.count; i++) {
+          positions.push({ x: posAttr.getX(i), y: posAttr.getY(i), z: posAttr.getZ(i) });
+        }
+
+        const uvs = Array.from(uvAttr.array);
+
+        let indices: number[] = [];
+        if (indexAttr) {
+          indices = Array.from(indexAttr.array);
+        } else {
+          for (let i = 0; i < posAttr.count; i++) indices.push(i);
+        }
+
+        setGeometry({ positions, uvs, indices });
+        setSelectedVertices(new Set());
+        setUvVersion(0);
+      }
+    } else {
+      setGeometry(INITIAL_GEOMETRY);
+      setSelectedVertices(new Set());
+      setUvVersion(0);
+    }
+  }, [selectedObject]);
+
+  // Sync from geometry to selectedObject when uvVersion changes
+  useEffect(() => {
+    if (selectedObject && selectedObject.geometry && geometry && uvVersion > 0) {
+      const geo = selectedObject.geometry as THREE.BufferGeometry;
+      const uvAttr = geo.getAttribute('uv');
+      if (uvAttr) {
+        for (let i = 0; i < geometry.uvs.length; i++) {
+          uvAttr.array[i] = geometry.uvs[i];
+        }
+        uvAttr.needsUpdate = true;
+      }
+    }
+  }, [uvVersion, geometry, selectedObject]);
 
   return (
     <EditorContext.Provider value={{
       geometry, setGeometry,
       selectedVertices, setSelectedVertices,
       activeTool, setActiveTool,
-      selectionMode, setSelectionMode
+      selectionMode, setSelectionMode,
+      selectedObject, setSelectedObject,
+      uvVersion, setUvVersion
     }}>
       {children}
     </EditorContext.Provider>

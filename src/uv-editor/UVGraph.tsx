@@ -4,7 +4,7 @@ import { drawUvGraph } from './drawUtils';
 import { useEditor } from './EditorContext';
 
 export function UVGraph() {
-  const { geometry, setGeometry, selectedVertices, setSelectedVertices, activeTool, setActiveTool, selectionMode } = useEditor();
+  const { geometry, setGeometry, selectedVertices, setSelectedVertices, activeTool, setActiveTool, selectionMode, setUvVersion } = useEditor();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -228,6 +228,7 @@ export function UVGraph() {
       }
       
       setGeometry(newGeometry);
+      setUvVersion(v => v + 1);
     } else if (selectionBox) {
       const { u, v } = getUvCoords(e.clientX, e.clientY);
       setSelectionBox(prev => prev ? { ...prev, currentU: u, currentV: v } : null);
@@ -311,6 +312,7 @@ export function UVGraph() {
     });
     
     setGeometry(newGeometry);
+    setUvVersion(v => v + 1);
   };
 
   const resetView = () => {
@@ -361,8 +363,8 @@ export function UVGraph() {
 
       {/* Snap Settings Panel */}
       {snapToGrid && (
-        <div className="absolute left-12 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-2 bg-[#2d2d2d]/90 backdrop-blur-sm p-3 rounded-md border border-[#444] shadow-lg font-mono text-xs text-[#ccc] w-40 ml-2">
-          <div className="font-semibold text-white mb-1 border-b border-[#555] pb-1">Snap Settings</div>
+        <div className="absolute left-12 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-0.5 bg-[#2d2d2d]/90 backdrop-blur-sm p-1 rounded border border-[#444] shadow-lg font-mono text-[9px] text-[#ccc] w-24 ml-2">
+          <div className="font-semibold text-white mb-0.5 border-b border-[#555] pb-0.5">Snap Settings</div>
           <div className="flex items-center justify-between">
             <span title="Grid snap amount">Grid:</span>
             <input 
@@ -371,7 +373,7 @@ export function UVGraph() {
               min="0.001"
               value={snapAmount}
               onChange={(e) => setSnapAmount(parseFloat(e.target.value) || 0)}
-              className="w-16 bg-[#1a1a1a] border border-[#555] rounded px-1.5 py-1 text-right focus:outline-none focus:border-blue-500"
+              className="w-10 bg-[#1a1a1a] border border-[#555] rounded px-0.5 py-0 text-right focus:outline-none focus:border-blue-500"
             />
           </div>
           <div className="flex items-center justify-between">
@@ -382,7 +384,7 @@ export function UVGraph() {
               min="1"
               value={snapAngleDeg}
               onChange={(e) => setSnapAngleDeg(parseFloat(e.target.value) || 0)}
-              className="w-16 bg-[#1a1a1a] border border-[#555] rounded px-1.5 py-1 text-right focus:outline-none focus:border-blue-500"
+              className="w-10 bg-[#1a1a1a] border border-[#555] rounded px-0.5 py-0 text-right focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
@@ -452,8 +454,8 @@ export function UVGraph() {
 
       {/* Manual Transform Panel */}
       {selectedVertices.size > 0 && selectionCenter && (
-        <div className="absolute bottom-12 left-4 z-20 flex flex-col gap-2 bg-[#2d2d2d]/90 backdrop-blur-sm p-3 rounded-md border border-[#444] shadow-lg font-mono text-xs text-[#ccc] w-48">
-          <div className="font-semibold text-white mb-1 border-b border-[#555] pb-1">Transform Center</div>
+        <div className="absolute bottom-12 left-4 z-20 flex flex-col gap-0.5 bg-[#2d2d2d]/90 backdrop-blur-sm p-1 rounded border border-[#444] shadow-lg font-mono text-[9px] text-[#ccc] w-28">
+          <div className="font-semibold text-white mb-0.5 border-b border-[#555] pb-0.5">Transform Center</div>
           
           <div className="flex items-center justify-between">
             <span>U:</span>
@@ -462,7 +464,7 @@ export function UVGraph() {
               step="0.01"
               value={Number(selectionCenter.u.toFixed(3))}
               onChange={(e) => handleManualTranslate('u', parseFloat(e.target.value))}
-              className="w-20 bg-[#1a1a1a] border border-[#555] rounded px-1.5 py-1 text-right focus:outline-none focus:border-blue-500"
+              className="w-14 bg-[#1a1a1a] border border-[#555] rounded px-0.5 py-0 text-right focus:outline-none focus:border-blue-500"
             />
           </div>
           <div className="flex items-center justify-between">
@@ -472,7 +474,7 @@ export function UVGraph() {
               step="0.01"
               value={Number(selectionCenter.v.toFixed(3))}
               onChange={(e) => handleManualTranslate('v', parseFloat(e.target.value))}
-              className="w-20 bg-[#1a1a1a] border border-[#555] rounded px-1.5 py-1 text-right focus:outline-none focus:border-blue-500"
+              className="w-14 bg-[#1a1a1a] border border-[#555] rounded px-0.5 py-0 text-right focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
