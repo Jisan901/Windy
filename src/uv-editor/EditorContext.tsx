@@ -23,6 +23,8 @@ interface EditorContextType {
   setSelectionMode: React.Dispatch<React.SetStateAction<SelectionMode>>;
   selectedObject: THREE.Mesh | null;
   setSelectedObject: React.Dispatch<React.SetStateAction<THREE.Mesh | null>>;
+  selectedTexture: THREE.Texture | null;
+  setSelectedTexture: React.Dispatch<React.SetStateAction<THREE.Texture | null>>;
   uvVersion: number;
   setUvVersion: React.Dispatch<React.SetStateAction<number>>;
 }
@@ -52,9 +54,10 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
   const [activeTool, setActiveTool] = useState<ToolType>('select');
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('vertex');
   const [selectedObject, setSelectedObject] = useState<THREE.Mesh | null>(null);
+  const [selectedTexture, setSelectedTexture] = useState<THREE.Texture | null>(null);
   const [uvVersion, setUvVersion] = useState<number>(0);
 
-  // Sync from selectedObject to geometry
+  // Sync from selectedObject to geometry and texture
   useEffect(() => {
     if (selectedObject && selectedObject.geometry) {
       const geo = selectedObject.geometry as THREE.BufferGeometry;
@@ -81,10 +84,21 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
         setSelectedVertices(new Set());
         setUvVersion(0);
       }
+
+      // Check for material map
+      let map: THREE.Texture | null = null;
+      if (selectedObject.material) {
+        const mat = Array.isArray(selectedObject.material) ? selectedObject.material[0] : selectedObject.material;
+        if ((mat as any).map) {
+          map = (mat as any).map;
+        }
+      }
+      setSelectedTexture(map);
     } else {
       setGeometry(INITIAL_GEOMETRY);
       setSelectedVertices(new Set());
       setUvVersion(0);
+      setSelectedTexture(null);
     }
   }, [selectedObject]);
 
@@ -109,6 +123,7 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
       activeTool, setActiveTool,
       selectionMode, setSelectionMode,
       selectedObject, setSelectedObject,
+      selectedTexture, setSelectedTexture,
       uvVersion, setUvVersion
     }}>
       {children}

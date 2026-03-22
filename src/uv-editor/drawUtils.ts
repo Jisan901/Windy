@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { GeometryData } from './EditorContext';
 
 export function drawGizmo(
@@ -73,7 +74,8 @@ export function drawUvGraph(
   selectionBox: { startU: number, startV: number, currentU: number, currentV: number } | null,
   geometry: GeometryData | null,
   activeTool: string,
-  hoveredGizmo: string | null
+  hoveredGizmo: string | null,
+  selectedTexture: THREE.Texture | null
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -93,6 +95,18 @@ export function drawUvGraph(
   ctx.translate(pan.x, pan.y);
   ctx.scale(zoom, zoom);
   ctx.translate(-w / 2, -h / 2);
+
+  // Draw texture if available
+  if (selectedTexture && selectedTexture.image) {
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    if (selectedTexture.flipY === false) {
+      ctx.translate(0, h);
+      ctx.scale(1, -1);
+    }
+    ctx.drawImage(selectedTexture.image as CanvasImageSource, 0, 0, w, h);
+    ctx.restore();
+  }
 
   // Draw grid
   ctx.strokeStyle = '#333';
@@ -149,13 +163,13 @@ export function drawUvGraph(
       
       ctx.fillStyle = isSelected ? '#ef4444' : (isVertexMode ? '#fff' : '#888');
       ctx.beginPath();
-      const radius = (isSelected ? 10 : (isVertexMode ? 8 : 4)) / zoom;
+      const radius = (isSelected ? 5 : (isVertexMode ? 4 : 2)) / zoom;
       ctx.arc(u * w, (1 - v) * h, radius, 0, Math.PI * 2);
       ctx.fill();
 
       if (isSelected) {
         ctx.strokeStyle = '#fbbf24';
-        ctx.lineWidth = 4 / zoom;
+        ctx.lineWidth = 2 / zoom;
         ctx.stroke();
       }
     }

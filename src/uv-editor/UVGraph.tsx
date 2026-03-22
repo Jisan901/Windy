@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Move, RotateCw, Maximize, Minus, Plus, Square as SquareIcon, Magnet } from 'lucide-react';
+import * as THREE from 'three';
+import { Move, RotateCw, Maximize, Minus, Plus, Square as SquareIcon, Magnet, Upload } from 'lucide-react';
 import { drawUvGraph } from './drawUtils';
 import { useEditor } from './EditorContext';
 
 export function UVGraph() {
-  const { geometry, setGeometry, selectedVertices, setSelectedVertices, activeTool, setActiveTool, selectionMode, setUvVersion } = useEditor();
+  const { geometry, setGeometry, selectedVertices, setSelectedVertices, activeTool, setActiveTool, selectionMode, setUvVersion, selectedTexture, setSelectedTexture, selectedObject } = useEditor();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -53,21 +54,28 @@ export function UVGraph() {
         selectionBox,
         geometry,
         activeTool,
-        hoveredGizmo
+        hoveredGizmo,
+        selectedTexture
       );
     }
-  }, [selectionMode, zoom, pan, selectedVertices, selectionBox, geometry, activeTool, hoveredGizmo]);
+  }, [selectionMode, zoom, pan, selectedVertices, selectionBox, geometry, activeTool, hoveredGizmo, selectedTexture]);
 
   const getUvCoords = (clientX: number, clientY: number) => {
     if (!uvCanvasRef.current) return { u: 0, v: 0 };
     const rect = uvCanvasRef.current.getBoundingClientRect();
     const sx = clientX - rect.left;
     const sy = clientY - rect.top;
-    const w = rect.width;
-    const h = rect.height;
+    
+    const scaleX = 800 / rect.width;
+    const scaleY = 800 / rect.height;
+    const cx = sx * scaleX;
+    const cy = sy * scaleY;
 
-    const x = (sx - w/2 - pan.x) / zoom + w/2;
-    const y = (sy - h/2 - pan.y) / zoom + h/2;
+    const w = 800;
+    const h = 800;
+
+    const x = (cx - w/2 - pan.x) / zoom + w/2;
+    const y = (cy - h/2 - pan.y) / zoom + h/2;
 
     const u = x / w;
     const v = 1 - (y / h);
@@ -92,11 +100,17 @@ export function UVGraph() {
     const rect = uvCanvasRef.current.getBoundingClientRect();
     const sx = clientX - rect.left;
     const sy = clientY - rect.top;
-    const w = rect.width;
-    const h = rect.height;
+    
+    const scaleX = 800 / rect.width;
+    const scaleY = 800 / rect.height;
+    const cx_screen = sx * scaleX;
+    const cy_screen = sy * scaleY;
 
-    const x = (sx - w/2 - pan.x) / zoom + w/2;
-    const y = (sy - h/2 - pan.y) / zoom + h/2;
+    const w = 800;
+    const h = 800;
+
+    const x = (cx_screen - w/2 - pan.x) / zoom + w/2;
+    const y = (cy_screen - h/2 - pan.y) / zoom + h/2;
 
     const cx = center.u * w;
     const cy = (1 - center.v) * h;
@@ -126,9 +140,13 @@ export function UVGraph() {
       const newZoom = delta > 0 ? zoom * factor : zoom / factor;
       setZoom(Math.max(0.1, Math.min(10, newZoom)));
     } else {
+      if (!uvCanvasRef.current) return;
+      const rect = uvCanvasRef.current.getBoundingClientRect();
+      const scaleX = 800 / rect.width;
+      const scaleY = 800 / rect.height;
       setPan(prev => ({
-        x: prev.x - e.deltaX,
-        y: prev.y - e.deltaY
+        x: prev.x - e.deltaX * scaleX,
+        y: prev.y - e.deltaY * scaleY
       }));
     }
   };
@@ -162,8 +180,12 @@ export function UVGraph() {
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (isPanning) {
-      const dx = e.clientX - lastPointerPos.current.x;
-      const dy = e.clientY - lastPointerPos.current.y;
+      if (!uvCanvasRef.current) return;
+      const rect = uvCanvasRef.current.getBoundingClientRect();
+      const scaleX = 800 / rect.width;
+      const scaleY = 800 / rect.height;
+      const dx = (e.clientX - lastPointerPos.current.x) * scaleX;
+      const dy = (e.clientY - lastPointerPos.current.y) * scaleY;
       setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
       lastPointerPos.current = { x: e.clientX, y: e.clientY };
     } else if (transformState && geometry && setGeometry) {
@@ -322,6 +344,33 @@ export function UVGraph() {
 
   const selectionCenter = getSelectionCenter();
 
+  const handleTextureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const texture = new THREE.Texture(img);
+        texture.needsUpdate = true;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        setSelectedTexture(texture);
+        
+        // Also apply to the selected object if it exists
+        if (selectedObject && selectedObject.material) {
+          const mat = Array.isArray(selectedObject.material) ? selectedObject.material[0] : selectedObject.material;
+          if ('map' in mat) {
+            (mat as any).map = texture;
+            (mat as any).needsUpdate = true;
+          }
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div 
       ref={containerRef}
@@ -392,6 +441,11 @@ export function UVGraph() {
 
       {/* Zoom Controls Overlay */}
       <div className="absolute right-2 top-2 z-20 flex items-center gap-1 bg-[#2d2d2d]/80 backdrop-blur-sm p-1 rounded-md border border-[#444] shadow-lg">
+        <label className="p-1 hover:bg-[#444] rounded text-[#ccc] cursor-pointer" title="Upload Texture">
+          <Upload size={14} />
+          <input type="file" accept="image/*" className="hidden" onChange={handleTextureUpload} />
+        </label>
+        <div className="w-[1px] h-4 bg-[#555] mx-1" />
         <button 
           onClick={() => setSelectedVertices(new Set())}
           className="px-2 py-1 hover:bg-[#444] rounded text-[#ccc] text-[10px] font-medium uppercase tracking-wider border border-[#444] mr-2"
